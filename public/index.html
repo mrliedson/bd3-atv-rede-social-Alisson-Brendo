@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+
+<html lang="pt-br">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>ATIVIDADE - REDE SOCIAL</title>
+
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+
+
+</head>
+
+<body>
+
+    <script src="socket.io/socket.io.js"></script>
+    <div id="posts">
+    <div class="screen-flicker" id="screenFlicker"></div>
+    <audio id="spookySound" src="./sounds/jigsaw.mp3" preload="auto"></audio>
+    <audio id="thunderSound" src="./sounds/thunder.mp3" preload="auto"></audio>
+
+    <div class="header_container">
+        <img src="./images/rede.png" />
+        <h1>ATIVIDADE - REDE SOCIAL</h1>
+    </div>
+
+    <div class="button_post_container">
+        <button name="btn_post" id="btn_post">POST</button>
+    </div>
+
+    <div class="posts_container"></div>
+
+    <!-- ESTRUTURA HTML DO FORMULÁRIO MODAL: -->
+    <div id="myModal" class="modal">
+        
+        <div class="modal-content">
+
+            <div class="halloween">🎃</div>
+            <div class="halloween">👻</div>
+            <div class="halloween">🎃</div>
+            <div class="halloween">👻</div>
+            <div class="halloween">🎃</div>
+            <div class="halloween">👻</div>
+
+            <span class="close">&times;</span>
+            
+            <div class="form_post_container">
+
+                <h4>FAÇA UM POST</h4>
+
+                <form name="frm_post" id="frm_post">
+
+                    <input type="text" name="txt_titulo" id="txt_titulo" placeholder="Titulo do post *">
+                    <br />
+                    <input type="text" name="txt_post" id="txt_post"  placeholder="Texto do Post *">
+                    <br />
+                    <input type="text" name="txt_author" id="txt_author"  placeholder="Autor *">
+                    <br />
+                    <button name="frm_post" id="frm_post">POSTAR</button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+<script>
+ // ===== Conexão com Socket.IO =====
+const socket = io();
+
+// ===== Elementos DOM =====
+const postsContainer = document.querySelector('.posts_container');
+const btnOpenModal = document.getElementById('btn_post');
+const modal = document.getElementById("myModal");
+const spanClose = document.getElementsByClassName("close")[0];
+const frmPost = document.getElementById('frm_post');
+const inputTitulo = document.getElementById('txt_titulo');
+const inputPost = document.getElementById('txt_post');
+const inputAuthor = document.getElementById('txt_author');
+const screenFlicker = document.getElementById('screenFlicker');
+const spookySound = document.getElementById('spookySound');
+const thunderSound = document.getElementById('thunderSound');
+
+function playHalloweenSound() {
+    const audio = new Audio('./sounds/lobo.mp3');
+    audio.play();
+}
+
+// ===== ABRIR MODAL =====
+btnOpenModal.addEventListener('click', (e) => {
+    e.preventDefault();
+    modal.style.display = "block";
+});
+
+// ===== FECHAR MODAL =====
+spanClose.addEventListener('click', () => {
+    modal.style.display = "none";
+});
+
+// ===== FECHAR MODAL AO CLICAR FORA =====
+window.addEventListener('click', (e) => {
+    if (e.target === modal) modal.style.display = "none";
+});
+
+// ===== FUNÇÃO PARA RENDERIZAR UM POST =====
+function renderPost(post) {
+  const postEl = document.createElement('div');
+  postEl.classList.add('post_container', 'new-post');
+  postEl.setAttribute('data-id', post._id || post.id); // garante identificação
+
+  postEl.innerHTML = `
+    <button class="delete-btn" title="Excluir post">🗑️</button>
+    <h3>${post.title || 'Sem título'}</h3>
+    <p>${post.message}</p>
+    <span>Autor: ${post.author} | ${new Date(post.createdAt).toLocaleString()}</span>
+  `;
+
+  postsContainer.prepend(postEl);
+
+  // ===== Botão de exclusão =====
+  const deleteBtn = postEl.querySelector('.delete-btn');
+  deleteBtn.addEventListener('click', () => {
+    const confirmDelete = confirm('Deseja realmente excluir este post?');
+    if (confirmDelete) {
+      const postId = post._id || post.id;
+      socket.emit('deleteMessage', postId);
+    }
+  });
+
+  // Remove a animação inicial depois de 1.5s
+  setTimeout(() => postEl.classList.remove('new-post'), 1500);
+}
+
+// ===== ENVIAR POST =====
+frmPost.addEventListener('submit', (e) => {
+  e.preventDefault();
+
+  const postData = {
+    author: inputAuthor.value.trim() || 'Anônimo',
+    title: inputTitulo.value.trim(),
+    message: inputPost.value.trim()
+  };
+
+  if (!postData.title && !postData.message) {
+    alert('Preencha pelo menos o título ou o texto!');
+    return;
+  }
+
+  // ===== Efeito de apagão =====
+  spookySound.currentTime = 0;
+  thunderSound.currentTime = 0;
+  spookySound.play();
+
+  let flickStep = 0;
+  const flickSequence = [
+    { opacity: 1, color: 'flash-purple', delay: 200 },
+    { opacity: 0, color: '', delay: 150 },
+    { opacity: 1, color: 'flash-orange', delay: 250 },
+    { opacity: 0, color: '', delay: 200 },
+    { opacity: 1, color: 'flash-purple', delay: 300 },
+    { opacity: 0, color: '', delay: 100 }
+  ];
+
+  const flickerEffect = () => {
+    const step = flickSequence[flickStep];
+    if (!step) {
+      screenFlicker.style.opacity = '0';
+      thunderSound.play();
+
+      document.body.classList.add('shake');
+      setTimeout(() => document.body.classList.remove('shake'), 600);
+
+      setTimeout(() => {
+        socket.emit('sendMessage', postData);
+        inputTitulo.value = '';
+        inputPost.value = '';
+        inputAuthor.value = '';
+        modal.style.display = "none";
+      }, 500);
+      return;
+    }
+
+    screenFlicker.classList.remove('flash-purple', 'flash-orange');
+    if (step.color) screenFlicker.classList.add(step.color);
+    screenFlicker.style.opacity = step.opacity;
+
+    flickStep++;
+    setTimeout(flickerEffect, step.delay);
+  };
+
+  flickerEffect();
+});
+
+// ===== RECEBER POSTS EXISTENTES =====
+socket.on('previousMessage', (posts) => {
+  postsContainer.innerHTML = '';
+  posts.reverse().forEach(post => renderPost(post));
+});
+
+// ===== RECEBER NOVO POST EM TEMPO REAL =====
+socket.on('receivedMessage', (post) => {
+  renderPost(post);
+});
+
+// ===== REMOVER POST DELETADO COM EFEITO DE DESINTEGRAÇÃO =====
+socket.on('removedMessage', (postId) => {
+  const postEl = document.querySelector(`.post_container[data-id="${postId}"]`);
+  if (!postEl) return;
+
+  // Cria partículas mágicas (pó colorido 🎃👻)
+  for (let i = 0; i < 35; i++) {
+    const spark = document.createElement('div');
+    spark.className = 'spark';
+    spark.style.setProperty('--x', Math.random() * 200 - 100);
+    spark.style.setProperty('--y', Math.random() * 200 - 100);
+    const colors = ['#ff6600', '#a64eff', '#ffffff', '#ffcc00'];
+    spark.style.background = colors[Math.floor(Math.random() * colors.length)];
+    spark.style.left = Math.random() * 100 + '%';
+    spark.style.top = Math.random() * 100 + '%';
+    postEl.appendChild(spark);
+  }
+
+  // Efeito de desintegração
+  postEl.classList.add('disintegrate');
+
+  // Remove após o efeito
+  setTimeout(() => postEl.remove(), 2600);
+});
+</script>
+
+
+</html>
